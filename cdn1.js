@@ -1,76 +1,51 @@
-// CDN Parser for Lampa - Работает как источник видео
+// CDN Debug плагин
 (function(){
     if(typeof Lampa === "undefined") return;
     
     Lampa.Listener.follow('app', function(e){
         if(e.type === 'ready'){
-            console.log('✅ CDN Source плагин загружен');
+            console.log('🔧 CDN Debug плагин работает');
             
-            // Регистрируем как источник для сериалов
-            Lampa.Source.add({
-                id: 'cdn_parser',
-                title: 'CDN Video (beta)',
-                type: 'serial',
-                // Функция поиска сериала
-                search: async function(query, page, callback){
-                    console.log('Поиск CDN:', query);
-                    callback([]); // Не используем поиск в источнике
-                },
-                // Функция получения видео для серии
-                torrent: async function(season, episode, serialData, callback){
-                    console.log('Запрос CDN для', serialData.title, season, episode);
+            // Добавляем принудительно кнопку в карточку
+            Lampa.Activity.add({
+                url: '',
+                title: '🎬 CDN Смотреть',
+                component: 'full',
+                onSelect: function(item){
+                    console.log('Нажата CDN кнопка для:', item);
+                    Lampa.Notify.show('CDN плагин активен! Ищем видео...', null, null, 3000);
                     
-                    // Ищем сериал по названию
-                    const title = serialData.title || serialData.name;
-                    
-                    try {
-                        const searchUrl = `https://videocdn.tv/api/search?token=Z1k1FpYu&title=${encodeURIComponent(title)}&type=serial`;
-                        const response = await fetch(searchUrl);
-                        const data = await response.json();
-                        
-                        if(data && data.data && data.data.length > 0){
-                            const serial = data.data[0];
-                            
-                            // Находим нужный сезон и серию
-                            const seasonData = serial.seasons.find(s => (s.number || s.season) == season);
-                            if(seasonData && seasonData.episodes){
-                                const episodeData = seasonData.episodes.find(ep => (ep.number || ep.episode) == episode);
-                                
-                                if(episodeData && episodeData.id){
-                                    // Получаем ссылку на видео
-                                    const streamUrl = `https://videocdn.tv/api/stream?token=Z1k1FpYu&id=${episodeData.id}&quality=720`;
-                                    const streamResponse = await fetch(streamUrl);
-                                    const streamData = await streamResponse.json();
-                                    
-                                    if(streamData && streamData.data && streamData.data.url){
-                                        // Отправляем результат в плеер
-                                        callback([{
-                                            url: streamData.data.url,
-                                            quality: '720p',
-                                            title: 'CDN Видео'
-                                        }]);
-                                        return;
-                                    }
-                                }
-                            }
-                        }
-                        callback([]);
-                    } catch(error){
-                        console.error('CDN error:', error);
-                        callback([]);
+                    // Простой тест
+                    if(item.title){
+                        testCDN(item.title);
                     }
-                }
-            });
-            
-            // Регистрируем для фильмов (на всякий случай)
-            Lampa.Source.add({
-                id: 'cdn_parser_movie',
-                title: 'CDN Video (beta)',
-                type: 'movie',
-                torrent: async function(movieData, callback){
-                    callback([]);
                 }
             });
         }
     });
+    
+    async function testCDN(title){
+        Lampa.Modal.open({
+            title: 'Поиск',
+            html: '<div style="text-align:center;padding:20px">🔍 ' + title + '</div>',
+            size: 'small'
+        });
+        
+        try {
+            const url = 'https://videocdn.tv/api/search?token=Z1k1FpYu&title=' + encodeURIComponent(title);
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            Lampa.Modal.close();
+            
+            if(data && data.data && data.data.length){
+                Lampa.Notify.show('✅ Найдено: ' + data.data[0].title, null, null, 3000);
+            } else {
+                Lampa.Notify.show('❌ Ничего не найдено', null, null, 3000);
+            }
+        } catch(e) {
+            Lampa.Modal.close();
+            Lampa.Notify.show('⚠️ Ошибка: ' + e.message, null, null, 3000);
+        }
+    }
 })();
